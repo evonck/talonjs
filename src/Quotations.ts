@@ -22,6 +22,8 @@ import {
   QuotationRegexp,
   QuotePatternRegexp,
   SplitterRegexps,
+  SeparatorQuotationRegexp,
+  WhiteSpaceRegexp
 } from './Regexp';
 import { elementToText, findDelimiter, matchStart, normalizeHtmlDocument, splitLines } from './Utils';
 
@@ -323,24 +325,12 @@ export function processMarkedLines(lines: string[], markers: string): {
     inlineReplyRegexp.lastIndex--;
   }
 
-  // Cut out text lines coming after the splitter if there are no markers there.
-  let quotation: any = markers.match("(se*)+((t|f)+e*)+");
-  while (checkQuotationForInLineQuote(copyLines, quotation) && quotation) {
-    quoteFound += quotation.index + quotation.length;
-    copyLines = copyLines.slice(quotation.index + quotation.length +1, copyLines.length);
-    markers = markMessageLines(lines);
-    quotation = markers.match("(se*)+((t|f)+e*)+");
-  }
-  if (quotation) {
-    result.wereLinesDeleted = true;
-    result.firstDeletedLine = quoteFound + quotation.index;
-    result.lastDeletedLine = lines.length - 1;
-    result.lastMessageLines = lines.slice(0, quotation.index);
-    return result;
-  }
+  let quotationResults = findQuotationsInformation(lines, markers);
+  if (quotationResults)
+    return quotationResults;
 
   // Handle the case with markers.
-  quotation = markers.match(QuotationRegexp)
+  let quotation = markers.match(QuotationRegexp)
     || markers.match(EmptyQuotationRegexp);
 
   if (quotation) {
@@ -357,25 +347,48 @@ export function processMarkedLines(lines: string[], markers: string): {
   return result;
 }
 
+function findQuotationsInformation(lines: string[], markers: string) {
+  let includeQuoteOffset = 0;
+  let quotation: any = markers.match(SeparatorQuotationRegexp);
+  let markedLines = lines;
+  while (checkQuotationForInLineQuote(markedLines, quotation) && quotation) {
+    includeQuoteOffset += quotation.index + quotation.length;
+    markedLines = markedLines.slice(quotation.index + quotation.length +1, markedLines.length);
+    markers = markMessageLines(markedLines);
+    quotation = markers.match(SeparatorQuotationRegexp);
+  }
+  if (quotation) {
+    return {
+      wereLinesDeleted: true,
+      firstDeletedLine: includeQuoteOffset + quotation.index,
+      lastDeletedLine: lines.length - 1,
+      lastMessageLines: lines.slice(0, includeQuoteOffset + quotation.index)
+    }
+  }
+  return null;
+}
+
+/**
+ * Check if found quotation already exist in the email.
+ * @param lines Lines of email to check for quotation information
+ * @param quotation Quotation information
+ */
 function checkQuotationForInLineQuote(lines: string[], quotation: RegExpMatchArray) : boolean {
   if (!quotation)
     return false;
 
-  const quote = lines.slice(quotation.index, quotation.index + quotation.length);
-  const endQuote = lines.slice(quotation.index + quotation.length +1, lines.length).map(l => l.trim() && l.replace(/\s+/g, ''));
-  const includedInQuote = quote.some(line => {
-    line = line.replace(/^\s+/g, '');
-    // Don't compare empty strings
+  // Get tttt markers and check if the quotation already exist
+  const quote = lines.slice(quotation.index + 1, quotation.index + quotation.length);
+  const endQuote = lines.slice(quotation.index + quotation.length +1, lines.length).map(l => l.trim() && l.replace(WhiteSpaceRegexp, ''));
+  const notIncludedInQuote = quote.some(line => {
+    line = line.trim().replace(WhiteSpaceRegexp, '');
     if (line === '')
       return false;
 
-    if (!endQuote.includes(line.trim().replace(/\s+/g, '')))
-      console.log(`${line.trim().replace(/\s+/g, '')} not included`);
-
-    return endQuote.includes(line.trim().replace(/\s+/g, ''));
+    return !endQuote.includes(line);
   });
-  console.log(`includedInQuote ${includedInQuote}`);
-  return includedInQuote;
+
+  return !notIncludedInQuote;
 }
 
 /*

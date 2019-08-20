@@ -150,3 +150,6 @@ export const ParenthesisLinkRegexp = new RegExp("\\(https?://");
 
 export const QuotePatternRegexp = new RegExp("^>+ ?");
 export const NoQuoteLineRegexp = new RegExp("^[^>].*[\\S].*");
+
+export const SeparatorQuotationRegexp = new RegExp("(se*)+((t|f)+e*)+");
+export const WhiteSpaceRegexp =/\s+/g;
