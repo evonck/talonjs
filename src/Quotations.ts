@@ -55,7 +55,6 @@ export function extractFromPlain(messageBody: string): ExtractFromPlainResult {
   const lines = splitLines(messageBody).slice(0, MaxLinesCount);
   const markers = markMessageLines(lines);
   const { wereLinesDeleted, lastMessageLines } = processMarkedLines(lines, markers);
-
   // Concatenate the lines, change links back, strip and return.
   messageBody = lastMessageLines.join(delimiter);
   messageBody = postProcess(messageBody);
@@ -91,12 +90,13 @@ export function extractFromHtml(messageBody: string): ExtractFromHtmlResult {
     xmlDocument.removeChild(xmlDocument.lastChild);
 
   // Try and cut the quote of one of the known types.
-  const cutQuotations = cutGmailQuote(xmlDocument)
-     || cutZimbraQuote(xmlDocument)
-     || cutBlockquote(xmlDocument)
-     || cutMicrosoftQuote(xmlDocument)
-     || cutById(xmlDocument);
+  // const cutQuotations = cutGmailQuote(xmlDocument)
+  //    || cutZimbraQuote(xmlDocument)
+  //    || cutBlockquote(xmlDocument)
+  //    || cutMicrosoftQuote(xmlDocument)
+  //    || cutById(xmlDocument);
 
+  // console.log(cutQuotations);
   // Keep a copy of the original document around.
   const xmlDocumentCopy = <Document>xmlDocument.cloneNode(true);
 
@@ -128,8 +128,8 @@ export function extractFromHtml(messageBody: string): ExtractFromHtmlResult {
     }
   }
   // Otherwise, if we found a known quote earlier, return the content before.
-  else if (!extractQuoteHtml.quoteWasFound && cutQuotations)
-    return { body: xmlDomSerializer.serializeToString(xmlDocumentCopy, true), didFindQuote: true };
+  // else if (!extractQuoteHtml.quoteWasFound && cutQuotations)
+    // return {t body: xmlDomSerializer.serializeToString(xmlDocumentCopy, true), didFindQuote: true };
   // Finally, if no quote was found, return the original HTML.
   else
     return { body: messageBody, didFindQuote: false };
@@ -237,16 +237,19 @@ export function markMessageLines(lines: string[]): string {
   let index = 0;
   while (index < lines.length) {
     const line = lines[index];
+    console.log(line);
     // Empty line.
     if (!line) {
       markers[index] = "e";
-
+      console.log("e");
     // Line with a quotation marker.
     } else if (matchStart(line, QuotePatternRegexp)) {
       markers[index] = "m";
+      console.log("m");
     // Forwarded message.
     } else if (matchStart(line, ForwardRegexp)) {
       markers[index] = "f";
+      console.log("f");
     } else {
       // Try to find a splitter spread on several lines.
       const splitterMatch = isSplitter(lines.slice(index, index + SplitterMaxLines).join("\n"));
@@ -254,11 +257,13 @@ export function markMessageLines(lines: string[]): string {
       // If none was found, assume it's a line from the last message in the conversation.
       if (!splitterMatch) {
         markers[index] = "t";
+        console.log("t");
       // Otherwise, append as many splitter markers, as lines in the splitter.
       } else {
         const splitterLines = splitLines(splitterMatch[0]);
         for (let splitterIndex = 0; splitterIndex < splitterLines.length; splitterIndex++)
           markers[index + splitterIndex] = "s";
+          console.log("s");
 
         // Skip as many lines as we just updated.
         index += splitterLines.length - 1;
@@ -284,12 +289,15 @@ export function processMarkedLines(lines: string[], markers: string): {
   firstDeletedLine: number,
   lastDeletedLine: number
 } {
+  console.log(markers);
   const result = {
     lastMessageLines: lines,
     wereLinesDeleted: false,
     firstDeletedLine: -1,
     lastDeletedLine: -1
   };
+  let copyLines = lines;
+  let quoteFound = 0;
   // If there are no splitters, there should be no markers.
   if (markers.indexOf("s") < 0 && !/(me*){3}/.exec(markers))
     markers = markers.replace(/m/g, "t");
@@ -317,9 +325,15 @@ export function processMarkedLines(lines: string[], markers: string): {
 
   // Cut out text lines coming after the splitter if there are no markers there.
   let quotation: any = markers.match("(se*)+((t|f)+e*)+");
+  while (checkQuotationForInLineQuote(copyLines, quotation) && quotation) {
+    quoteFound += quotation.index + quotation.length;
+    copyLines = copyLines.slice(quotation.index + quotation.length +1, copyLines.length);
+    markers = markMessageLines(lines);
+    quotation = markers.match("(se*)+((t|f)+e*)+");
+  }
   if (quotation) {
     result.wereLinesDeleted = true;
-    result.firstDeletedLine = quotation.index;
+    result.firstDeletedLine = quoteFound + quotation.index;
     result.lastDeletedLine = lines.length - 1;
     result.lastMessageLines = lines.slice(0, quotation.index);
     return result;
@@ -341,6 +355,27 @@ export function processMarkedLines(lines: string[], markers: string): {
   }
 
   return result;
+}
+
+function checkQuotationForInLineQuote(lines: string[], quotation: RegExpMatchArray) : boolean {
+  if (!quotation)
+    return false;
+
+  const quote = lines.slice(quotation.index, quotation.index + quotation.length);
+  const endQuote = lines.slice(quotation.index + quotation.length +1, lines.length).map(l => l.trim() && l.replace(/\s+/g, ''));
+  const includedInQuote = quote.some(line => {
+    line = line.replace(/^\s+/g, '');
+    // Don't compare empty strings
+    if (line === '')
+      return false;
+
+    if (!endQuote.includes(line.trim().replace(/\s+/g, '')))
+      console.log(`${line.trim().replace(/\s+/g, '')} not included`);
+
+    return endQuote.includes(line.trim().replace(/\s+/g, ''));
+  });
+  console.log(`includedInQuote ${includedInQuote}`);
+  return includedInQuote;
 }
 
 /*

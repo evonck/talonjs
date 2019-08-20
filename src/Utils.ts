@@ -79,14 +79,17 @@ export function elementToText(element: Node, ignoreBlockTags: Boolean): string {
 
 function extractTextFromNode(node: Node, text: String) {
   let nodeValue = (node.nodeValue || (node.firstChild && node.firstChild.nodeType === NodeTypes.TEXT_NODE && node.firstChild.nodeValue) || '').trim();
-  const sibillingValue = ((node.nextSibling && node.nextSibling.nodeType === NodeTypes.TEXT_NODE && node.nextSibling.nodeValue) || '').trim();
+  let sibillingValue = ((node.nextSibling && node.nextSibling.nodeType === NodeTypes.TEXT_NODE && node.nextSibling.nodeValue) || '').trim();
 
   if (HardbreakTags.indexOf(node.nodeName.toLowerCase()) >= 0
     && text && text[text.length - 1] !== "\n")
     nodeValue += "\n";
 
+  if (sibillingValue.startsWith('<blockquote'))
+    sibillingValue = '';
+
   let nodeText = nodeValue + sibillingValue;
-  return nodeText.replace('\\n', '\n');
+  return nodeText.replace('\\n', '\n').replace(/^\s+/, '');
 }
 
 /**
