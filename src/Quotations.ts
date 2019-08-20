@@ -129,7 +129,7 @@ export function extractFromHtml(messageBody: string): ExtractFromHtmlResult {
    || cutMicrosoftQuote(xmlDocument)
    || cutById(xmlDocument);
   // Otherwise, if we found a known quote earlier, return the content before.
-   if (cutQuotations)
+   if (!extractQuoteHtml.quoteWasFound && cutQuotations)
     return {body: xmlDomSerializer.serializeToString(xmlDocumentCopy, true), didFindQuote: true };
   // Finally, if no quote was found, return the original HTML.
   else
@@ -343,6 +343,9 @@ function findQuotationsInformation(lines: string[], markers: string) {
   let includeQuoteOffset = 0;
   let quotation: any = markers.match(SeparatorQuotationRegexp);
   let markedLines = lines;
+  if (!quotation)
+    return null;
+
   while (checkQuotationForInLineQuote(markedLines, quotation) && quotation) {
     includeQuoteOffset += quotation.index + quotation.length;
     markedLines = markedLines.slice(quotation.index + quotation.length +1, markedLines.length);
@@ -370,8 +373,9 @@ function checkQuotationForInLineQuote(lines: string[], quotation: RegExpMatchArr
     return false;
 
   // Get tttt markers and check if the quotation already exist
-  const quote = lines.slice(quotation.index + 1, quotation.index + quotation.length);
-  const endQuote = lines.slice(quotation.index + quotation.length +1, lines.length).map(l => l.trim() && l.replace(WhiteSpaceRegexp, ''));
+  const quoteLength = quotation[0].length;
+  const quote = lines.slice(quotation.index + 1, quotation.index + quoteLength);
+  const endQuote = lines.slice(quotation.index + quoteLength +1, lines.length).map(l => l.trim() && l.replace(WhiteSpaceRegexp, ''));
   const notIncludedInQuote = quote.some(line => {
     line = line.trim().replace(WhiteSpaceRegexp, '');
     if (line === '')
