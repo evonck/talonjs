@@ -239,19 +239,15 @@ export function markMessageLines(lines: string[]): string {
   let index = 0;
   while (index < lines.length) {
     const line = lines[index];
-    console.log(line);
     // Empty line.
     if (!line) {
       markers[index] = "e";
-      console.log("e");
     // Line with a quotation marker.
     } else if (matchStart(line, QuotePatternRegexp)) {
       markers[index] = "m";
-      console.log("m");
     // Forwarded message.
     } else if (matchStart(line, ForwardRegexp)) {
       markers[index] = "f";
-      console.log("f");
     } else {
       // Try to find a splitter spread on several lines.
       const splitterMatch = isSplitter(lines.slice(index, index + SplitterMaxLines).join("\n"));
@@ -259,13 +255,11 @@ export function markMessageLines(lines: string[]): string {
       // If none was found, assume it's a line from the last message in the conversation.
       if (!splitterMatch) {
         markers[index] = "t";
-        console.log("t");
       // Otherwise, append as many splitter markers, as lines in the splitter.
       } else {
         const splitterLines = splitLines(splitterMatch[0]);
         for (let splitterIndex = 0; splitterIndex < splitterLines.length; splitterIndex++)
           markers[index + splitterIndex] = "s";
-          console.log("s");
 
         // Skip as many lines as we just updated.
         index += splitterLines.length - 1;
