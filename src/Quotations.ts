@@ -91,14 +91,6 @@ export function extractFromHtml(messageBody: string): ExtractFromHtmlResult {
   if (xmlDocument.lastChild && xmlDocument.lastChild.nodeValue)
     xmlDocument.removeChild(xmlDocument.lastChild);
 
-  // Try and cut the quote of one of the known types.
-  // const cutQuotations = cutGmailQuote(xmlDocument)
-  //    || cutZimbraQuote(xmlDocument)
-  //    || cutBlockquote(xmlDocument)
-  //    || cutMicrosoftQuote(xmlDocument)
-  //    || cutById(xmlDocument);
-
-  // console.log(cutQuotations);
   // Keep a copy of the original document around.
   const xmlDocumentCopy = <Document>xmlDocument.cloneNode(true);
 
@@ -129,9 +121,16 @@ export function extractFromHtml(messageBody: string): ExtractFromHtmlResult {
       didFindQuote: true
     }
   }
+
+   // Try and cut the quote of one of the known types.
+   const cutQuotations = cutGmailQuote(xmlDocument)
+   || cutZimbraQuote(xmlDocument)
+   || cutBlockquote(xmlDocument)
+   || cutMicrosoftQuote(xmlDocument)
+   || cutById(xmlDocument);
   // Otherwise, if we found a known quote earlier, return the content before.
-  // else if (!extractQuoteHtml.quoteWasFound && cutQuotations)
-    // return {t body: xmlDomSerializer.serializeToString(xmlDocumentCopy, true), didFindQuote: true };
+   if (cutQuotations)
+    return {body: xmlDomSerializer.serializeToString(xmlDocumentCopy, true), didFindQuote: true };
   // Finally, if no quote was found, return the original HTML.
   else
     return { body: messageBody, didFindQuote: false };
@@ -285,7 +284,6 @@ export function processMarkedLines(lines: string[], markers: string): {
   firstDeletedLine: number,
   lastDeletedLine: number
 } {
-  console.log(markers);
   const result = {
     lastMessageLines: lines,
     wereLinesDeleted: false,
